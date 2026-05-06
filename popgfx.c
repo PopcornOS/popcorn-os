@@ -26,14 +26,6 @@ int pop_API popgk_init(popg_GraphicsServices* sgfx) {
     return pop_SUCCESS;
 }
 
-static inline int ctz(unsigned int mask) {
-    int shift = 0;
-    while (((mask >> shift) & 1) == 0 && shift < 32) {
-        shift++;
-    }
-    return shift;
-}
-
 void pop_API popgk_blit(popg_GraphicsServices* sgfx) {
     EFI_GRAPHICS_OUTPUT_PROTOCOL* gop =
         (EFI_GRAPHICS_OUTPUT_PROTOCOL*)sgfx->shndl;

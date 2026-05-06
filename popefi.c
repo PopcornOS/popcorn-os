@@ -1,6 +1,7 @@
 #include <efi.h>
 #include <efilib.h>
 #include "popcorn.h"
+#include "fb_splash.png.h"
 
 EFI_GUID gEfiLoadedImageProtocolGuid = EFI_LOADED_IMAGE_PROTOCOL_GUID;
 EFI_GUID gEfiSimpleFileSystemProtocolGuid = EFI_SIMPLE_FILE_SYSTEM_PROTOCOL_GUID;
@@ -26,6 +27,9 @@ extern void        pop_API  popgk_putpixel(popg_GraphicsServices* sgfx, unsigned
                                            unsigned char r, unsigned char g, unsigned char b);
 extern popg_Pixel  pop_API  popgk_getpixel(popg_GraphicsServices* sgfx, unsigned int x, unsigned int y);
 extern void        pop_API  popgk_deinit(popg_GraphicsServices* sgfx);
+
+extern int         pop_API  popmk_init(popm_MouseServices* msvc);
+extern int         pop_API  popmk_query(popm_MouseServices* msvc);
 
 // Kernel services
 void pop_API popk_print(pop_Services* svc, const CHAR16* msg) {
@@ -320,6 +324,10 @@ void popk_curmove(pop_Services* svc, unsigned int x, unsigned int y) {
     gST->ConOut->SetCursorPosition(gST->ConOut, x, y);
 }
 
+void popk_reset(pop_Services* svc, BOOL quick) {
+    gRT->ResetSystem(quick ? EfiResetWarm : EfiResetCold, EFI_SUCCESS, 0, NULL);
+}
+
 pop_Services* popk_newsvc(pop_Services* svc) {
     pop_Services* svc2 = popk_memalloc(svc, sizeof(pop_Services));
     
@@ -346,6 +354,8 @@ pop_Services* popk_newsvc(pop_Services* svc) {
     svc2->sgfx = NULL;
     svc2->termsize = NULL;
     svc2->curmove = popk_curmove;
+    svc2->msvc = NULL;
+    svc2->reset = popk_reset;
     
     svc2->console = svc ? svc->console : popfk_fileopen(svc2, L"/virt/dev/con", (popf_FileMode){ 
         .read = 0, .write = 1, .create = 0, .bytes = 0 
@@ -372,17 +382,44 @@ pop_Services* popk_newsvc(pop_Services* svc) {
         sgfx->deinit   = popgk_deinit;
     }
     svc2->sgfx = sgfx;
+    popm_MouseServices* msvc = svc2->memalloc(svc2, sizeof(popm_MouseServices));
+    if (msvc && sgfx) {
+        msvc->svc         = svc2;
+        msvc->x           = 0;
+        msvc->y           = 0;
+        msvc->query       = popmk_query;
+        msvc->init        = popmk_init;
+        msvc->shndl       = NULL;
+        msvc->z           = 0;
+        msvc->sensitivity = 0;
+        msvc->left        = FALSE;
+        msvc->right       = FALSE;
+    }
+    svc2->msvc = msvc;
     return svc2;
 }
 
-// UEFI uses CHAR16 (UTF-16 code units) for strings
-INTN wcscmp(const CHAR16 *s1, const CHAR16 *s2) {
-    while (*s1 && (*s1 == *s2)) {
-        s1++;
-        s2++;
+void splash(pop_Services* svc) {
+    popg_GraphicsServices* sgfx = svc->sgfx;
+
+    for (UINT32 y = 0; y < logo_h; y++) {
+        for (UINT32 x = 0; x < logo_w; x++) {
+            size_t idx = (y * logo_w + x) * 3;
+            unsigned char r = logo_f[idx + 0];
+            unsigned char g = logo_f[idx + 1];
+            unsigned char b = logo_f[idx + 2];
+
+            // Center the logo in the framebuffer
+            UINT32 dest_x = (sgfx->w - logo_w) / 2 + x;
+            UINT32 dest_y = (sgfx->h - logo_h) / 2 + y;
+
+            sgfx->frame[dest_y * sgfx->w + dest_x] = (popg_Pixel){ r, g, b };
+        }
     }
-    return (INTN)(*s1 - *s2);
+
+    sgfx->blit(sgfx);
 }
+
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandleA, EFI_SYSTEM_TABLE *SystemTable) {
     gST = SystemTable;             // System Table
@@ -398,6 +435,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandleA, EFI_SYSTEM_TABLE *SystemTabl
     pop_Services* svc = popk_newsvc(NULL);
 
     svc->sgfx->init(svc->sgfx);
+    splash(svc);
+    gBS->Stall(2000000);
     for (int i = 0; i < (svc->sgfx->w * svc->sgfx->h); i++) {
         svc->sgfx->frame[i] = (popg_Pixel){ .r = 0, .g = 0, .b = 0 };
     }
@@ -411,11 +450,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandleA, EFI_SYSTEM_TABLE *SystemTabl
     }
     
 shutdown:
-    popk_freesvc(NULL, svc);
-    popk_println(NULL, L"It is now safe to turn off your computer.");
-    popk_println(NULL, L"Press any key to continue the next boot option.");
-
-    gBS->WaitForEvent(1, &gST->ConIn->WaitForKey, &Index);
+    gRT->ResetSystem(EfiResetShutdown, EFI_SUCCESS, 0, NULL);
 
     return EFI_SUCCESS;
 }

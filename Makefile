@@ -8,11 +8,13 @@ PCC=$(CC)
 
 HDSIZE=64
 
+OVMF=qemu
+
 ifeq ($(PCC),cl)
 define pop-c
 	@# MSVC path: compile to OBJ, then convert to raw binary
 	@# Warning: does not play nice with non-inline functions.
-	cl /nologo /GS- /Zi /W3 /Od /D UNICODE /D _UNICODE /I include /c $(1) /Fo$(1).obj
+	cl /nologo /GS- /Zi /W3 /Od /D UNICODE /D _UNICODE /c $(1) /Fo$(1).obj
 	link.exe /NOLOGO /NODEFAULTLIB /ENTRY:pop_main /SUBSYSTEM:NATIVE /OUT:$(1).exe $(1).obj
 	objcopy -O binary $(1).exe $(2)
 	rm $(1).obj $(1).exe
@@ -21,10 +23,10 @@ else
 define pop-c
 	@# GCC/Clang path: freestanding compile + LD to raw binary
 	@# Warning: untested
-	$(PCC) -I include -ffreestanding -fno-stack-protector -nostdlib \
-	      -fshort-wchar -mno-red-zone -c $(1) -o $(1).o
+	$(PCC) -ffreestanding -fno-stack-protector -nostdlib \
+		  -fshort-wchar -mno-red-zone -c $(1) -o $(1).o
 	ld -nostdlib -e pop_main -Ttext=0x0 --oformat binary \
-	       $(1).o -o $(2)
+		   $(1).o -o $(2)
 	rm $(1).o
 endef
 endif
@@ -65,49 +67,73 @@ clean:
 	mkdir uefi/binstuff
 	mkdir uefi/system
 	
+reset: clean
+	rm -f OVMF_CODE.fd
+	rm -f OVMF_VARS.fd
+	rm -rf include
+	
 setup:
+ifeq ($(OVMF),edk2)
 	@if [ ! -f OVMF_CODE.fd ]; then \
-	    echo "getting OVMF_CODE.fd from https://qemu.weilnetz.de/test/ovmf/usr/share/OVMF/OVMF_CODE.fd..."; \
-	    curl -sSL "https://qemu.weilnetz.de/test/ovmf/usr/share/OVMF/OVMF_CODE.fd" -o OVMF_CODE.fd; \
+		echo "getting OVMF from https://github.com/rust-osdev/ovmf-prebuilt/releases/download/edk2-stable202602-r1/edk2-stable202602-r1-bin.tar.xz..."; \
+		curl -sSL "https://github.com/rust-osdev/ovmf-prebuilt/releases/download/edk2-stable202602-r1/edk2-stable202602-r1-bin.tar.xz" -o edk2.txz; \
+		tar xf edk2.txz edk2-stable202602-r1-bin/x64/code.fd --strip-components=1; \
+		mv x64/code.fd OVMF_CODE.fd; \
+		tar xf edk2.txz edk2-stable202602-r1-bin/x64/vars.fd --strip-components=1; \
+		mv x64/vars.fd OVMF_VARS.fd; \
+		rm -rf x64; \
+		rm -f edk2.txz; \
+	fi
+else ifeq ($(OVMF),qemu)
+	@if [ ! -f OVMF_CODE.fd ]; then \
+		echo "getting OVMF_CODE.fd from https://qemu.weilnetz.de/test/ovmf/usr/share/OVMF/OVMF_CODE.fd..."; \
+		curl -sSL "https://qemu.weilnetz.de/test/ovmf/usr/share/OVMF/OVMF_CODE.fd" -o OVMF_CODE.fd; \
 	fi
 	@if [ ! -f OVMF_VARS.fd ]; then \
-	    echo "getting OVMF_VARS.fd from https://qemu.weilnetz.de/test/ovmf/usr/share/OVMF/OVMF_VARS.fd..."; \
-	    curl -sSL "https://qemu.weilnetz.de/test/ovmf/usr/share/OVMF/OVMF_VARS.fd" -o OVMF_VARS.fd; \
+		echo "getting OVMF_VARS.fd from https://qemu.weilnetz.de/test/ovmf/usr/share/OVMF/OVMF_VARS.fd..."; \
+		curl -sSL "https://qemu.weilnetz.de/test/ovmf/usr/share/OVMF/OVMF_VARS.fd" -o OVMF_VARS.fd; \
 	fi
+else
+	$(error OVMF must be either 'edk2' or 'qemu')
+endif
 	@if [ ! -d include ]; then \
-	    echo "getting gnu-efi includes from https://github.com/ncroxon/gnu-efi/archive/refs/tags/4.0.4.tar.gz..."; \
-	    curl -sSL "https://github.com/ncroxon/gnu-efi/archive/refs/tags/4.0.4.tar.gz" -o gnu-efi.tgz; \
-	    tar xf gnu-efi.tgz gnu-efi-4.0.4/inc --strip-components=1; \
-	    mv inc include; \
-	    rm gnu-efi.tgz; \
+		echo "getting gnu-efi includes from https://github.com/ncroxon/gnu-efi/archive/refs/tags/4.0.4.tar.gz..."; \
+		curl -sSL "https://github.com/ncroxon/gnu-efi/archive/refs/tags/4.0.4.tar.gz" -o gnu-efi.tgz; \
+		tar xf gnu-efi.tgz gnu-efi-4.0.4/inc --strip-components=1; \
+		mv inc include; \
+		rm gnu-efi.tgz; \
 	fi
 	@if [ ! -f caramelized/stb_truetype.h ]; then \
-	    echo "getting stb_truetype.h from https://github.com/nothings/stb/raw/refs/heads/master/stb_truetype.h..."; \
-	    curl -sSL "https://github.com/nothings/stb/raw/refs/heads/master/stb_truetype.h" -o caramelized/stb_truetype.h \
+		echo "getting stb_truetype.h from https://github.com/nothings/stb/raw/refs/heads/master/stb_truetype.h..."; \
+		curl -sSL "https://github.com/nothings/stb/raw/refs/heads/master/stb_truetype.h" -o caramelized/stb_truetype.h; \
 	fi
 
 uefi-build-kernel:
+	python img2fb_h.py splash.png logo
 ifeq ($(CC),cl)
 	@# MSVC
-	cl /nologo /Zi /W3 /WX- /Od /D UNICODE /D _UNICODE popefi.c popfile.c poplist.c popgfx.c /I include \
+	cl /nologo /Zi /W3 /WX- /Od /D UNICODE /D _UNICODE popefi.c popfile.c poplist.c popgfx.c popmouse.c /I include \
 	   /link /subsystem:EFI_APPLICATION /entry:efi_main /out:uefi/EFI/BOOT/BOOTX64.EFI
 else
 	@# GCC/Clang
 	$(CC) -I include -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
-	      -c popefi.c -o popefi.o
+		  -c popefi.c -o popefi.o
 	$(CC) -I include -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
-	      -c popfile.c -o popfile.o
+		  -c popfile.c -o popfile.o
 	$(CC) -I include -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
-	      -c poplist.c -o poplist.o
+		  -c poplist.c -o poplist.o
 	$(CC) -I include -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
-	      -c popgfx.c -o popgfx.o
+		  -c popgfx.c -o popgfx.o
+	$(CC) -I include -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
+		  -c popmouse.c -o popmouse.o
 	ld -nostdlib -znocombreloc -T elf_x86_64_efi.lds \
 	   -shared -Bsymbolic \
-	   popefi.o popfile.o poplist.o popgfx.o -o BOOTX64.so
+	   popefi.o popfile.o poplist.o popgfx.o popmouse.o -o BOOTX64.so
 	objcopy --target=efi-app-x86_64 BOOTX64.so uefi/EFI/BOOT/BOOTX64.EFI
 endif
 
 uefi-build-apps:
+	python pop_trig_h.py
 	$(call pop-nasm,hello.S,uefi/system/hello.bin)
 	$(call pop-c,hello.c,uefi/system/chello.bin)
 	$(call pop-c,cmd.c,uefi/system/cmd.bin)
@@ -120,21 +146,26 @@ uefi-build-apps:
 	$(call pop-c,clear.c,uefi/system/clear.bin)
 	$(call pop-c,bsquare.c,uefi/system/bsquare.bin)
 	$(call pop-c,type.c,uefi/system/type.bin)
+	$(call pop-c,mousetest.c,uefi/system/mousetest.bin)
+	$(call pop-c,manysq.c,uefi/system/manysq.bin)
+	$(call pop-c,rotcube.c,uefi/system/rotcube.bin)
+	$(call pop-c,reset.c,uefi/system/reset.bin)
 	echo Before fwrite.bin | iconv -f utf8 -t utf16le > uefi/hello.txt
 	cp thello.txt uefi/system/thello
-	cd caramelized && make
+	@#cd caramelized && make CC=$(PCC)
 
 uefi-run:
 	qemu-system-x86_64 -drive if=pflash,format=raw,file=OVMF_CODE.fd,readonly=on \
 	                   -drive if=pflash,format=raw,file=OVMF_VARS.fd \
-	                   -drive format=raw,file=fat:rw:uefi
+	                   -drive format=raw,file=fat:rw:uefi \
+	                   -usb -device usb-mouse
 
 uefi-make-image:
 ifeq ($(OS),Windows_NT)
 	@if ! net session >nul 2>&1; then \
-	    echo; \
-	    echo "uefi-make-image: Administrator privileges required to make the HDD image on Windows."; \
-	    exit 1; \
+		echo; \
+		echo "uefi-make-image: Administrator privileges required to make the HDD image on Windows."; \
+		exit 1; \
 	fi
 	rm -f uefi.vhd
 	echo create vdisk file="$(subst /,\,$(abspath ./uefi.vhd))" maximum=$(HDSIZE) > temp.txt
@@ -165,13 +196,14 @@ endif
 uefi-run-image:
 	qemu-system-x86_64 -drive if=pflash,format=raw,file=OVMF_CODE.fd,readonly=on \
 	                   -drive if=pflash,format=raw,file=OVMF_VARS.fd \
-	                   -drive format=raw,file=uefi.img 
+	                   -drive format=raw,file=uefi.img \
+					   -usb -device usb-tablet
 
 help:
-	@echo "      make CC=... PCC=..."
-	@echo "  or: make dev CC=... PCC=..."
-	@echo "  or: make prod CC=... PCC=... HDSIZE=..."
-	@echo "  or: make help"
+	@echo "usage: make [CC=...] [PCC=...] [OVMF=edk2|qemu]"
+	@echo "   or: make [reset] dev [CC=...] [PCC=...] [OVMF=edk2|qemu]"
+	@echo "   or: make [reset] prod [CC=...] [PCC=...] [HDSIZE=...] [OVMF=edk2|qemu]"
+	@echo "   or: make help"
 	@echo
 	@echo "'make' is equivalent to 'make dev'. The CC argument specifies the "
 	@echo "C compiler used to compile the kernel. It defaults to cl on Windows "
@@ -182,4 +214,7 @@ help:
 	@echo "hard disk image 'uefi.img' and boots that using QEMU. HDSIZE is the"
 	@echo "size of the disk image in megabytes. It defaults to 64. 'make prod'"
 	@echo "on Windows can only be run as Administrator because of the use of"
-	@echo "'diskpart'."
+	@echo "'diskpart'. The OVMF argument specifies where to get OVMF from."
+	@echo "If set to edk2, OVMF will be downloaded from EDK2. If set to qemu,"
+	@echo "OVMF will instead be downloaded from qemu.weilnetz.de. 'reset' wipes"
+	@echo "OVMF and gnu-efi includes and all build artifacts."

@@ -147,6 +147,35 @@ typedef struct popg_GraphicsServices {
     void                         (*deinit)    (struct popg_GraphicsServices*);
 } popg_GraphicsServices;
 
+// Mouse services.
+// This depends on pop_Services.sgfx for the screen width & height.
+typedef struct popm_MouseServices {
+    // Pointer to the parent service table.
+    pop_Services*                svc;
+    
+    // Cursor x and y.
+    unsigned int                 x, y;
+    
+    // Query the mouse.
+    int /* code */               (*query)     (struct popm_MouseServices*);
+    
+    // Initialize the mouse for getting input.
+    int /* code */               (*init)      (struct popm_MouseServices*);
+    
+    // Undocumented and changes between implementations.
+    void*                        shndl;
+    
+    // Cursor scrollwheel.
+    unsigned int                 z;
+    
+    // Sensitivity, a number between 0 and 1 where 0 is no movement and 1 is the
+    // ((screen width + screen width) / 2)px per unit of movement. Default is 0.1.
+    double                       sensitivity;
+    
+    // Mouse buttons.
+    BOOL                         left, right;
+} popm_MouseServices;
+
 typedef struct popt_Termsize {
     unsigned int rows;
     unsigned int cols;
@@ -222,6 +251,12 @@ typedef struct pop_Services {
     // UNIMPLEMENTED: Get the width and height of the terminal.
     popt_Termsize                (*termsize)  (struct pop_Services*);
     
-    // Set the cursor position.
+    // Set the terminal cursor position.
     void                         (*curmove)   (struct pop_Services*, unsigned int x, unsigned int y);
+    
+    // Simple mouse services.
+    popm_MouseServices*          msvc;
+    
+    // Reboot the system. quick specifies if it's a quick reset or a full reboot.
+    void                         (*reset)     (struct pop_Services* /* optional */, BOOL quick);
 } pop_Services;
