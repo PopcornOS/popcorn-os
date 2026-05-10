@@ -1,11 +1,17 @@
 // Error codes
-#define pop_SUCCESS   0      // The operation completed successfully.
-#define pop_EEXISTS -16      // The specified file or directory already exists.
-#define pop_ENOPERM -17      // You do not have enough permission to complete this operation.
-#define pop_ENOENTY -18      // The specified file or directory was not found.
-#define pop_EUEFIPR -19      // UEFI firmware error.
-#define pop_E2LPATH -20      // The specified path length is too long.
-#define pop_ENOEXEC -20      // The specified file is not a valid executable.
+#define pop_SUCCESS  0        // The operation completed successfully.
+#define pop_EEXISTS  -16      // The specified file or directory already exists.
+#define pop_ENOPERM  -17      // You do not have enough permission to complete this operation.
+#define pop_ENOENT   -18      // The specified file or directory was not found.
+#define pop_EUEFI    -19      // UEFI firmware error.
+#define pop_ETOOLONG -20      // The specified path length is too long.
+#define pop_ENOEXEC  -21      // The specified file is not a valid executable.
+#define pop_EEOF     -22      // The end of the file has been reached.
+
+// Backwards compatibility
+#define pop_ENOENTY pop_ENOENT
+#define pop_E2LPATH pop_ETOOLONG
+#define pop_EUEFIPR pop_EUEFI
 
 // Type definitions
 typedef unsigned short CHAR16;
@@ -136,16 +142,27 @@ typedef struct popg_GraphicsServices {
     // Undocumented and changes between implementations.
     void*                        shndl;
     
-    // Put a pixel onto the framebuffer.
+    // DEPRECATED: Put a pixel onto the framebuffer. Slow and inefficient.
     void                         (*putpixel)  (struct popg_GraphicsServices*, unsigned int x, unsigned int y,
                                                unsigned char r, unsigned char g, unsigned char b);
     
-    // Get a pixel from the framebuffer.
+    // DEPRECATED: Get a pixel from the framebuffer. Slow and inefficient.
     popg_Pixel                   (*getpixel)  (struct popg_GraphicsServices*, unsigned int x, unsigned int y);
     
     // Deinitializes the graphics context.
     void                         (*deinit)    (struct popg_GraphicsServices*);
 } popg_GraphicsServices;
+
+/* Replacements for the deprecated putpixel and getpixel that are faster. */
+#define popg_PUTPIXEL(sgfx, X, Y, R, G, B) \
+    do { \
+        if ((X) >= 0 && (X) < (sgfx)->w && (Y) >= 0 && (Y) < (sgfx)->h) { \
+            (sgfx)->frame[(Y) * (sgfx)->w + (X)] = (popg_Pixel){ (R), (G), (B) }; \
+        } \
+    } while (0)
+        
+#define popg_GETPIXEL(sgfx, X, Y, R, G, B) \
+    (sgfx)->frame[(Y) * (sgfx)->w + (X)]
 
 // Mouse services.
 // This depends on pop_Services.sgfx for the screen width & height.

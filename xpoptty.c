@@ -1,13 +1,19 @@
 #include <efi.h>
 #include <efilib.h>
+#include "popcorn.h"
 
 #define popt_CUR_DASH        0
 #define popt_CUR_BLOCK       1
 
+extern EFI_SYSTEM_TABLE *gST;
+extern EFI_BOOT_SERVICES *gBS;
+extern EFI_RUNTIME_SERVICES *gRT;
+extern EFI_HANDLE *ImageHandle;
+
 typedef struct {
     CHAR16 ch;
-    bool bold;
-    bool underline;
+    BOOL bold;
+    BOOL underline;
     int fgColor;
     int bgColor;
 } popt_TTYCell;
@@ -26,21 +32,21 @@ typedef struct {
     void *extra;
 } popt_TTY;
 
-popt_TTY *popt_create_uefi(EFI_SYSTEM_TABLE *SystemTable) {
+popt_TTY *popt_create_uefi() {
     popt_TTY *tty = popk_memalloc(sizeof(popt_TTY));
     UINTN Columns, Rows;
 
     // Get current mode's width and height
-    SystemTable->ConOut->QueryMode(
-        SystemTable->ConOut,
-        SystemTable->ConOut->Mode->Mode,
+    gST->ConOut->QueryMode(
+        gST->ConOut,
+        gST->ConOut->Mode->Mode,
         &Columns,
         &Rows
     );
 
     tty->width = Columns;
     tty->height = Rows;
-    tty->extra = (void*)SystemTable->ConOut;
+    tty->extra = (void*)gST->ConOut;
 
     // Allocate 2D grid
     tty->cells = popk_memalloc(sizeof(popt_TTYCell*) * tty->height);

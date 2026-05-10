@@ -2,6 +2,11 @@
 #include <efilib.h>
 #include "popcorn.h"
 
+extern EFI_SYSTEM_TABLE *gST;
+extern EFI_BOOT_SERVICES *gBS;
+extern EFI_RUNTIME_SERVICES *gRT;
+extern EFI_HANDLE *ImageHandle;
+
 EFI_GUID gEfiGraphicsOutputProtocolGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
 
 int pop_API popgk_init(popg_GraphicsServices* sgfx) {

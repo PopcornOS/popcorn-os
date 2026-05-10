@@ -19,6 +19,15 @@ define pop-c
 	objcopy -O binary $(1).exe $(2)
 	rm $(1).obj $(1).exe
 endef
+else ifeq ($(PCC),tcc)
+define pop-c
+	@# TCC path
+	@# Warning: might not work
+	tcc -c $(1) -o $(1).o
+	ld -o $(1).tmp -Ttext 0x0 $(1).o -e pop_main
+	objcopy -O binary -j .text -j .data $(1).tmp $(2)
+	rm -f $(1).o $(1).tmp
+endef
 else
 define pop-c
 	@# GCC/Clang path: freestanding compile + LD to raw binary

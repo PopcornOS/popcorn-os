@@ -70,7 +70,7 @@ inline void drawLine(popg_GraphicsServices* g, Point a, Point b) {
     int x=a.x, y=a.y;
     while (1) {
         if (x>=0 && x<g->w && y>=0 && y<g->h)
-            g->putpixel(g,x,y,255,255,255);
+            popg_PUTPIXEL(g,x,y,255,255,255);
         if (x==b.x && y==b.y) break;
         int e2 = 2*err;
         if (e2 >= dy) { err += dy; x += sx; }
@@ -85,9 +85,9 @@ int pop_API pop_main(pop_Services* svc,int argc,CHAR16**argv) {
     float ax=0, ay=0, az=0;
     while (TRUE) {
         // clear screen
-        for (unsigned int i=0;i<g->w;i++)
-            for (unsigned int j=0;j<g->h;j++)
-                g->putpixel(g,i,j,0,0,0);
+        for (unsigned int i = 0; i < g->w * g->h; i++) {
+            g->frame[i] = (popg_Pixel){0,0,0};
+        }
 
         Vec3 rc[NUM_CORNERS];
         for (int i=0;i<NUM_CORNERS;i++)

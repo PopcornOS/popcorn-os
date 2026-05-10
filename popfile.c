@@ -8,20 +8,21 @@ extern EFI_RUNTIME_SERVICES *gRT;
 extern EFI_HANDLE *ImageHandle;
 
 // Forward declarations
-static popf_File* popf__virtfopen(pop_Services* svc, const CHAR16* uefipath, popf_FileMode mode);
-static popf_File* popf__uefifopen(pop_Services* svc, const CHAR16* uefipath, popf_FileMode mode, int uefiflags);
-static void*      popf__uefifread(popf_File* self);
-static int        popf__uefifwrite(popf_File* self, const CHAR16* data);
+static popf_File* popf__virtopen(pop_Services* svc, const CHAR16* uefipath, popf_FileMode mode);
+static popf_File* popf__uefiopen(pop_Services* svc, const CHAR16* uefipath, popf_FileMode mode, int uefilags);
+static void*      popf__uefiread(popf_File* self);
+static int        popf__uefiwrite(popf_File* self, const CHAR16* data);
 static int        popf__ueficlose(popf_File* self);
 
 // Fallbacks
 static void*   pop_API popf__failread(popf_File* self) { return NULL; }
 static int     pop_API popf__failclose(popf_File* self) { return pop_ENOPERM; }
-static int     pop_API popf__virtclose(popf_File* self) { return 0; }
+static int     pop_API popf__virtclose(popf_File* self) { self->svc->memfree(self->svc, self); return 0; }
 
 // Console write
 static int pop_API popft__ttywrite(popf_File* self, const CHAR16* data) {
     gST->ConOut->OutputString(gST->ConOut, data);
+    // popt_print(tty, data);
     return 0;
 }
 static void* pop_API popft__ttyread(popf_File* self) {
@@ -190,16 +191,16 @@ popf_File* pop_API popfk_fileopen(pop_Services* svc, const CHAR16* path, popf_Fi
     // Decide backend
     popf_File* f;
     if (wostrcmp(normpath, 0, 6, L"/virt/", 0, 6) == 0) {
-        f = popf__virtfopen(svc, normpath, mode);
+        f = popf__virtopen(svc, normpath, mode);
     } else {
-        f = popf__uefifopen(svc, normpath, mode, 0);
+        f = popf__uefiopen(svc, normpath, mode, 0);
     }
     svc->memfree(svc, normpath);
     return f;
 }
 
 // Virtual file open
-static popf_File* popf__virtfopen(pop_Services* svc, const CHAR16* normpath, popf_FileMode mode) {
+static popf_File* popf__virtopen(pop_Services* svc, const CHAR16* normpath, popf_FileMode mode) {
     if (wostrcmp(normpath, 6, 10, L"dev/", 0, 4) == 0) {
         if (wostrcmp(normpath, 10, 13, L"con", 0, 3) == 0 && normpath[13] == L'\0') {
             popf_File* f = (popf_File*)svc->memalloc(svc, sizeof(popf_File));
@@ -217,7 +218,7 @@ static popf_File* popf__virtfopen(pop_Services* svc, const CHAR16* normpath, pop
 }
 
 // UEFI file read/write/close
-static void* pop_API popf__uefifread(popf_File* self) {
+static void* pop_API popf__uefiread(popf_File* self) {
     if (!self || !self->shndl) return NULL;
     EFI_FILE_PROTOCOL* File = (EFI_FILE_PROTOCOL*)self->shndl;
     EFI_STATUS Status;
@@ -308,7 +309,7 @@ static void* pop_API popf__uefifread(popf_File* self) {
 }
 
 // Write: only write BOM when creating a new file (mode.create true)
-static int pop_API popf__uefifwrite(popf_File* self, const CHAR16* data) {
+static int pop_API popf__uefiwrite(popf_File* self, const CHAR16* data) {
     if (!self || !self->shndl || !data) return pop_ENOPERM;
     EFI_FILE_PROTOCOL* File = (EFI_FILE_PROTOCOL*)self->shndl;
     UINTN datalen = 0;
@@ -333,10 +334,11 @@ static int pop_API popf__uefifwrite(popf_File* self, const CHAR16* data) {
 static int pop_API popf__ueficlose(popf_File* self) {
     EFI_FILE_PROTOCOL* File = (EFI_FILE_PROTOCOL*)self->shndl;
     EFI_STATUS Status = File->Close(File);
+    self->svc->memfree(self->svc, self);
     return EFI_ERROR(Status) ? pop_ENOPERM : 0;
 }
 
-static popf_File* pop_API popf__uefifopen(pop_Services* svc, const CHAR16* normpath, popf_FileMode mode, int uefiflags) {
+static popf_File* pop_API popf__uefiopen(pop_Services* svc, const CHAR16* normpath, popf_FileMode mode, int uefilags) {
     // Convert '/' to '\'
     size_t len = 0;
     while (normpath[len]) len++;
@@ -365,13 +367,13 @@ static popf_File* pop_API popf__uefifopen(pop_Services* svc, const CHAR16* normp
     Status = Root->Open(Root, &File, uefipath, (mode.read   ? EFI_FILE_MODE_READ   : 0) | 
                                                (mode.write  ? EFI_FILE_MODE_WRITE  : 0) | 
                                                (mode.create ? EFI_FILE_MODE_CREATE : 0) |
-                                               uefiflags, 0);
+                                               uefilags, 0);
     if (EFI_ERROR(Status)) { svc->errcode = pop_ENOENTY; return NULL; }
 
     popf_File* f = (popf_File*)svc->memalloc(svc, sizeof(popf_File));
     f->shndl = (void*)File;
-    f->read  = popf__uefifread;
-    f->write = popf__uefifwrite;
+    f->read  = popf__uefiread;
+    f->write = popf__uefiwrite;
     f->close = popf__ueficlose;
     f->svc   = svc;
     f->mode  = mode;
@@ -392,7 +394,7 @@ BOOL popfk_direxists(pop_Services* svc, const CHAR16* path) {
         res = TRUE;
     } else {
         // Try UEFI open with directory check
-        popf_File* f = popf__uefifopen(svc, normpath, (popf_FileMode){ .read = 1 }, 0);
+        popf_File* f = popf__uefiopen(svc, normpath, (popf_FileMode){ .read = 1 }, 0);
         if (f) {
             EFI_FILE_PROTOCOL* File = (EFI_FILE_PROTOCOL*)f->shndl;
             EFI_STATUS Status;
