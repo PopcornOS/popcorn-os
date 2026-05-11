@@ -31,12 +31,12 @@ endef
 else
 define pop-c
 	@# GCC/Clang path: freestanding compile + LD to raw binary
-	@# Warning: untested
 	$(PCC) -ffreestanding -fno-stack-protector -nostdlib \
-		  -fshort-wchar -mno-red-zone -c $(1) -o $(1).o
-	ld -nostdlib -e pop_main -Ttext=0x0 --oformat binary \
-		   $(1).o -o $(2)
-	rm $(1).o
+		   -fno-asynchronous-unwind-tables -fshort-wchar \
+		   -mno-red-zone -c $(1) -o $(1).o
+	ld -nostdlib -T pop.ld $(1).o -o $(1).exe
+	objcopy -O binary $(1).exe $(2)
+	rm $(1).o $(1).exe
 endef
 endif
 

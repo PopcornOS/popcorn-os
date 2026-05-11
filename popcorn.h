@@ -15,7 +15,12 @@
 
 // Type definitions
 typedef unsigned short CHAR16;
-typedef unsigned char BOOL;
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L
+    typedef _Bool BOOL;
+#else
+    typedef unsigned char BOOL;
+#endif
 
 #ifndef TRUE
 #define TRUE ((BOOL)1)
@@ -27,6 +32,15 @@ typedef unsigned char BOOL;
 
 #ifndef NULL
 #define NULL ((void*)0)
+#endif
+
+// Deprecation
+#if defined(_MSC_VER)
+    #define pop_DEPRECATED(msg) __declspec(deprecated(msg))
+#elif defined(__GNUC__) && __GNUC__ >= 4
+    #define pop_DEPRECATED(msg) __attribute__((deprecated(msg)))
+#else
+    #define pop_DEPRECATED(msg) __attribute__((deprecated))
 #endif
 
 // Popcorn OS calling convention (rcx, rdx, r8, r9, ...stack)
@@ -142,11 +156,17 @@ typedef struct popg_GraphicsServices {
     // Undocumented and changes between implementations.
     void*                        shndl;
     
-    // DEPRECATED: Put a pixel onto the framebuffer. Slow and inefficient.
+    // Put a pixel onto the framebuffer.
+    pop_DEPRECATED("popg_GraphicsServices.putpixel introduces another function call when it is not needed, "
+                   "slowing down applications quite heavily. Use popg_PUTPIXEL instead, which is a function-"
+                   "like macro and a drop-in replacement.")
     void                         (*putpixel)  (struct popg_GraphicsServices*, unsigned int x, unsigned int y,
                                                unsigned char r, unsigned char g, unsigned char b);
     
-    // DEPRECATED: Get a pixel from the framebuffer. Slow and inefficient.
+    // Get a pixel from the framebuffer.
+    pop_DEPRECATED("popg_GraphicsServices.getpixel introduces another function call when it is not needed, "
+                   "slowing down applications quite heavily. Use popg_GETPIXEL instead, which is a function-"
+                   "like macro and a drop-in replacement.")
     popg_Pixel                   (*getpixel)  (struct popg_GraphicsServices*, unsigned int x, unsigned int y);
     
     // Deinitializes the graphics context.

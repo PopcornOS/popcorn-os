@@ -40,21 +40,19 @@ int pop_API pop_main(pop_Services* svc, int argc, CHAR16** argv) {
     }
 
     unsigned int x = 0, y = 0;
-    int dx = 30, dy = 20;
-    unsigned int size = 20;
+    int dx = 40, dy = 20;
+    unsigned int size = 40;
 
     for (int frame = 0; forever || frame < 500; frame++) {
         // Clear screen to black
-        for (unsigned int i = 0; i < gfx->w; i++) {
-            for (unsigned int j = 0; j < gfx->h; j++) {
-                gfx->putpixel(gfx, i, j, 0, 0, 0);
-            }
+        for (unsigned int i = 0; i < gfx->w * gfx->h; i++) {
+            gfx->frame[i] = (popg_Pixel){0,0,0};
         }
 
         // Draw the square in current color
         for (unsigned int i = 0; i < size; i++) {
             for (unsigned int j = 0; j < size; j++) {
-                gfx->putpixel(gfx, x + i, y + j,
+                popg_PUTPIXEL(gfx, x + i, y + j,
                               colors[colindex][0],
                               colors[colindex][1],
                               colors[colindex][2]);
