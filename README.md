@@ -15,7 +15,7 @@ Popcorn OS currently uses a hybrid toolchain:
 1. The kernel must be compiled with MSVC (Microsoft Visual C++).
    The kernel depends on MSVC's handling of certain calling conventions and startup code (as in, it doesn't need them); GCC/Clang builds are not supported at this time.
 
-2. Applications must be compiled with GCC if you want proper behaviour. (MSVC works, but you can't make non-inline functions. GCC works! ...except you can't make inline functions, the opposite problem. GCC needs non-inline functions to be declared before pop_main, obviously, but only defined after pop_main.)
+2. Applications must be compiled with GCC if you want proper behaviour. (MSVC works, but you can't make non-inline functions. GCC works! ...except you can't make inline functions, the opposite problem.) GCC needs non-inline functions to be declared before pop_main, obviously, but only defined after pop_main.
 
 This means the build process is not fully cross-platform.
 
