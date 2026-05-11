@@ -21,62 +21,15 @@ int edges[][2] = {
     {4,5},{5,7},{7,6},{6,4}
 };
 
-inline float sin(float x) {
-    // Normalize angle to [0, TAU]
-    while (x < 0) x += TAU;
-    while (x >= TAU) x -= TAU;
+float sin(float x);
+float cos(float x);
+int abs(int x);
 
-    int idx = (int)(x * (TABLE_SIZE / TAU));
-    return (float)sin_table[idx] / AMPLITUDE;
-}
-
-inline float cos(float x) {
-    while (x < 0) x += TAU;
-    while (x >= TAU) x -= TAU;
-
-    int idx = (int)(x * (TABLE_SIZE / TAU));
-    return (float)cos_table[idx] / AMPLITUDE;
-}
-
-inline int abs(int x) {
-    return (x < 0) ? -x : x;
-}
-
-inline Vec3 rotate(Vec3 v, float ax, float ay, float az) {
-    // rotate around x
-    float y = v.y*cos(ax) - v.z*sin(ax);
-    float z = v.y*sin(ax) + v.z*cos(ax);
-    v.y=y; v.z=z;
-    // rotate around y
-    float x = v.z*sin(ay) + v.x*cos(ay);
-    z = v.z*cos(ay) - v.x*sin(ay);
-    v.x=x; v.z=z;
-    // rotate around z
-    x = v.x*cos(az) - v.y*sin(az);
-    y = v.x*sin(az) + v.y*cos(az);
-    v.x=x; v.y=y;
-    return v;
-}
-
-inline Point project(Vec3 v, int w, int h) {
-    return (Point){ (int)(v.x*(w/4)+w/2), (int)(v.y*(h/4)+h/2) };
-}
+Point project(Vec3 v, int w, int h);
+Vec3 rotate(Vec3 v, float ax, float ay, float az);
 
 // Bresenham line
-inline void drawLine(popg_GraphicsServices* g, Point a, Point b) {
-    int dx = abs(b.x - a.x), sx = a.x < b.x ? 1 : -1;
-    int dy = -abs(b.y - a.y), sy = a.y < b.y ? 1 : -1;
-    int err = dx + dy;
-    int x=a.x, y=a.y;
-    while (1) {
-        if (x>=0 && x<g->w && y>=0 && y<g->h)
-            popg_PUTPIXEL(g,x,y,255,255,255);
-        if (x==b.x && y==b.y) break;
-        int e2 = 2*err;
-        if (e2 >= dy) { err += dy; x += sx; }
-        if (e2 <= dx) { err += dx; y += sy; }
-    }
-}
+void drawLine(popg_GraphicsServices* g, Point a, Point b);
 
 int pop_API pop_main(pop_Services* svc,int argc,CHAR16**argv) {
     popg_GraphicsServices* g = svc->sgfx;
@@ -104,4 +57,60 @@ int pop_API pop_main(pop_Services* svc,int argc,CHAR16**argv) {
     }
     g->deinit(g);
     return pop_SUCCESS;
+}
+
+float sin(float x) {
+    // Normalize angle to [0, TAU]
+    while (x < 0) x += TAU;
+    while (x >= TAU) x -= TAU;
+
+    int idx = (int)(x * (TABLE_SIZE / TAU));
+    return (float)sin_table[idx] / AMPLITUDE;
+}
+
+float cos(float x) {
+    while (x < 0) x += TAU;
+    while (x >= TAU) x -= TAU;
+
+    int idx = (int)(x * (TABLE_SIZE / TAU));
+    return (float)cos_table[idx] / AMPLITUDE;
+}
+
+Vec3 rotate(Vec3 v, float ax, float ay, float az) {
+    // rotate around x
+    float y = v.y*cos(ax) - v.z*sin(ax);
+    float z = v.y*sin(ax) + v.z*cos(ax);
+    v.y=y; v.z=z;
+    // rotate around y
+    float x = v.z*sin(ay) + v.x*cos(ay);
+    z = v.z*cos(ay) - v.x*sin(ay);
+    v.x=x; v.z=z;
+    // rotate around z
+    x = v.x*cos(az) - v.y*sin(az);
+    y = v.x*sin(az) + v.y*cos(az);
+    v.x=x; v.y=y;
+    return v;
+}
+
+void drawLine(popg_GraphicsServices* g, Point a, Point b) {
+    int dx = abs(b.x - a.x), sx = a.x < b.x ? 1 : -1;
+    int dy = -abs(b.y - a.y), sy = a.y < b.y ? 1 : -1;
+    int err = dx + dy;
+    int x=a.x, y=a.y;
+    while (1) {
+        if (x>=0 && x<g->w && y>=0 && y<g->h)
+            popg_PUTPIXEL(g,x,y,255,255,255);
+        if (x==b.x && y==b.y) break;
+        int e2 = 2*err;
+        if (e2 >= dy) { err += dy; x += sx; }
+        if (e2 <= dx) { err += dx; y += sy; }
+    }
+}
+
+int abs(int x) {
+    return (x < 0) ? -x : x;
+}
+
+Point project(Vec3 v, int w, int h) {
+    return (Point){ (int)(v.x*(w/4)+w/2), (int)(v.y*(h/4)+h/2) };
 }

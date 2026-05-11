@@ -1,10 +1,5 @@
-ifeq ($(OS),Windows_NT)
 CC=cl
-else
-CC=gcc
-endif
-
-PCC=$(CC)
+PCC=gcc
 
 HDSIZE=64
 
@@ -124,7 +119,7 @@ ifeq ($(CC),cl)
 	cl /nologo /Zi /W3 /WX- /Od /D UNICODE /D _UNICODE popefi.c popfile.c poplist.c popgfx.c popmouse.c /I include \
 	   /link /subsystem:EFI_APPLICATION /entry:efi_main /out:uefi/EFI/BOOT/BOOTX64.EFI
 else
-	@# GCC/Clang
+	@# GCC/Clang (does not work)
 	$(CC) -I include -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
 		  -c popefi.c -o popefi.o
 	$(CC) -I include -fno-stack-protector -fpic -fshort-wchar -mno-red-zone \
@@ -141,24 +136,25 @@ else
 	objcopy --target=efi-app-x86_64 BOOTX64.so uefi/EFI/BOOT/BOOTX64.EFI
 endif
 
+dumb:
+	$(call pop-c,type.c,uefi/system/type.bin)
+	$(call pop-c,mousetest.c,uefi/system/mousetest.bin)
+
 uefi-build-apps:
 	python pop_trig_h.py
 	$(call pop-nasm,hello.S,uefi/system/hello.bin)
 	$(call pop-c,hello.c,uefi/system/chello.bin)
 	$(call pop-c,cmd.c,uefi/system/cmd.bin)
-	$(call pop-c,fread.c,uefi/system/fread.bin)
-	$(call pop-c,fwrite.c,uefi/system/fwrite.bin)
-	$(call pop-c,argv.c,uefi/system/argv.bin)
 	$(call pop-c,ls.c,uefi/system/ls.bin)
-	$(call pop-c,red.c,uefi/system/red.bin)
-	$(call pop-c,pat.c,uefi/system/pat.bin)
-	$(call pop-c,clear.c,uefi/system/clear.bin)
-	$(call pop-c,bsquare.c,uefi/system/bsquare.bin)
-	$(call pop-c,type.c,uefi/system/type.bin)
-	$(call pop-c,mousetest.c,uefi/system/mousetest.bin)
+	$(call pop-c,reset.c,uefi/system/reset.bin)
 	$(call pop-c,manysq.c,uefi/system/manysq.bin)
 	$(call pop-c,rotcube.c,uefi/system/rotcube.bin)
-	$(call pop-c,reset.c,uefi/system/reset.bin)
+	$(call pop-c,bsquare.c,uefi/system/bsquare.bin)
+	$(call pop-c,clear.c,uefi/system/clear.bin)
+	$(call pop-c,type.c,uefi/system/type.bin)
+	$(call pop-c,red.c,uefi/system/red.bin)
+	$(call pop-c,pat.c,uefi/system/pat.bin)
+
 	echo Before fwrite.bin | iconv -f utf8 -t utf16le > uefi/hello.txt
 	cp thello.txt uefi/system/thello
 	@#cd caramelized && make CC=$(PCC)

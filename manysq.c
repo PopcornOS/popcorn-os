@@ -14,52 +14,7 @@ inline int abs(int x) {
 }
 
 // Safer collision resolution with clamping
-inline void resolve_collision(Square* a, Square* b, popg_GraphicsServices* sgfx) {
-    int overlapX = (a->x < b->x + b->size) && (a->x + a->size > b->x);
-    int overlapY = (a->y < b->y + b->size) && (a->y + a->size > b->y);
-
-    if (overlapX && overlapY) {
-        int penX = (a->x + a->size) - b->x;
-        int penY = (a->y + a->size) - b->y;
-
-        if (penX < penY) {
-            // Horizontal collision
-            a->dx = -a->dx;
-            b->dx = -b->dx;
-
-            if (a->x < b->x) {
-                a->x -= penX/2;
-                b->x += penX/2;
-            } else {
-                a->x += penX/2;
-                b->x -= penX/2;
-            }
-        } else {
-            // Vertical collision
-            a->dy = -a->dy;
-            b->dy = -b->dy;
-
-            if (a->y < b->y) {
-                a->y -= penY/2;
-                b->y += penY/2;
-            } else {
-                a->y += penY/2;
-                b->y -= penY/2;
-            }
-        }
-
-        // Clamp both squares back inside the framebuffer
-        if (a->x < 0) a->x = 0;
-        if (a->x + a->size >= sgfx->w) a->x = sgfx->w - a->size - 1;
-        if (a->y < 0) a->y = 0;
-        if (a->y + a->size >= sgfx->h) a->y = sgfx->h - a->size - 1;
-
-        if (b->x < 0) b->x = 0;
-        if (b->x + b->size >= sgfx->w) b->x = sgfx->w - b->size - 1;
-        if (b->y < 0) b->y = 0;
-        if (b->y + b->size >= sgfx->h) b->y = sgfx->h - b->size - 1;
-    }
-}
+void resolve_collision(Square* a, Square* b, popg_GraphicsServices* sgfx);
 
 
 int pop_API pop_main(pop_Services* svc, int argc, CHAR16** argv) {
@@ -125,4 +80,51 @@ int pop_API pop_main(pop_Services* svc, int argc, CHAR16** argv) {
 
     sgfx->deinit(sgfx);
     return pop_SUCCESS;
+}
+
+void resolve_collision(Square* a, Square* b, popg_GraphicsServices* sgfx) {
+    int overlapX = (a->x < b->x + b->size) && (a->x + a->size > b->x);
+    int overlapY = (a->y < b->y + b->size) && (a->y + a->size > b->y);
+
+    if (overlapX && overlapY) {
+        int penX = (a->x + a->size) - b->x;
+        int penY = (a->y + a->size) - b->y;
+
+        if (penX < penY) {
+            // Horizontal collision
+            a->dx = -a->dx;
+            b->dx = -b->dx;
+
+            if (a->x < b->x) {
+                a->x -= penX/2;
+                b->x += penX/2;
+            } else {
+                a->x += penX/2;
+                b->x -= penX/2;
+            }
+        } else {
+            // Vertical collision
+            a->dy = -a->dy;
+            b->dy = -b->dy;
+
+            if (a->y < b->y) {
+                a->y -= penY/2;
+                b->y += penY/2;
+            } else {
+                a->y += penY/2;
+                b->y -= penY/2;
+            }
+        }
+
+        // Clamp both squares back inside the framebuffer
+        if (a->x < 0) a->x = 0;
+        if (a->x + a->size >= sgfx->w) a->x = sgfx->w - a->size - 1;
+        if (a->y < 0) a->y = 0;
+        if (a->y + a->size >= sgfx->h) a->y = sgfx->h - a->size - 1;
+
+        if (b->x < 0) b->x = 0;
+        if (b->x + b->size >= sgfx->w) b->x = sgfx->w - b->size - 1;
+        if (b->y < 0) b->y = 0;
+        if (b->y + b->size >= sgfx->h) b->y = sgfx->h - b->size - 1;
+    }
 }

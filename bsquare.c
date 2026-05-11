@@ -1,13 +1,7 @@
 #include "popcorn.h"
 
 // Helper: compare wide strings
-inline int wstrcmp(const CHAR16* a, const CHAR16* b) {
-    while (*a && *b) {
-        if (*a != *b) return (*a - *b);
-        a++; b++;
-    }
-    return (*a - *b);
-}
+int wstrcmp(const CHAR16* a, const CHAR16* b);
 
 int pop_API pop_main(pop_Services* svc, int argc, CHAR16** argv) {
     int colors[6][3] = {
@@ -78,4 +72,12 @@ int pop_API pop_main(pop_Services* svc, int argc, CHAR16** argv) {
 
     gfx->deinit(gfx);
     return pop_SUCCESS;
+}
+
+int wstrcmp(const CHAR16* a, const CHAR16* b) {
+    while (*a && *b) {
+        if (*a != *b) return (*a - *b);
+        a++; b++;
+    }
+    return (*a - *b);
 }

@@ -1,6 +1,6 @@
 #include "popcorn.h"
 
-inline int wstrcmp(const CHAR16* a, const CHAR16* b) {
+int wstrcmp(const CHAR16* a, const CHAR16* b) {
     while (*a && *b) {
         if (*a != *b) return (*a - *b);
         a++; b++;

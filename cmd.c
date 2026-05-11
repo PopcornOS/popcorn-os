@@ -5,9 +5,9 @@ typedef struct {
     BOOL shouldexit;
 } ExecResult;
 
-inline CHAR16** split_whitespace(pop_Services* svc, CHAR16* line, int* argc_out);
-inline ExecResult cmdexec(pop_Services* svc, CHAR16* line);
-inline int wstrcmp(const CHAR16* a, const CHAR16* b);
+CHAR16** split_whitespace(pop_Services* svc, CHAR16* line, int* argc_out);
+ExecResult cmdexec(pop_Services* svc, CHAR16* line);
+int wstrcmp(const CHAR16* a, const CHAR16* b);
 
 int pop_API pop_main(pop_Services* svc, int argc, CHAR16** argv) {
     svc->println(svc, L"Popcorn OS version pre-v1.0.0");
@@ -28,7 +28,7 @@ int pop_API pop_main(pop_Services* svc, int argc, CHAR16** argv) {
 // Splits a CHAR16 string into tokens, respecting quotes.
 // Supports "double quotes" and 'single quotes'.
 // Returns argv array (NULL-terminated) and sets *argc_out.
-inline CHAR16** split_shlex(pop_Services* svc, CHAR16* line, int* argc_out) {
+CHAR16** split_shlex(pop_Services* svc, CHAR16* line, int* argc_out) {
     int len = 0;
     while (line[len]) len++;
 
@@ -74,7 +74,7 @@ inline CHAR16** split_shlex(pop_Services* svc, CHAR16* line, int* argc_out) {
     return argv;
 }
 
-inline int wstrcmp(const CHAR16* a, const CHAR16* b) {
+int wstrcmp(const CHAR16* a, const CHAR16* b) {
     while (*a && *b) {
         if (*a != *b) return (*a - *b);
         a++; b++;
@@ -82,7 +82,7 @@ inline int wstrcmp(const CHAR16* a, const CHAR16* b) {
     return (*a - *b);
 }
 
-inline ExecResult cmdexec(pop_Services* svc, CHAR16* line) {
+ExecResult cmdexec(pop_Services* svc, CHAR16* line) {
     ExecResult res;
     res.code = 0;
     res.shouldexit = FALSE;

@@ -10,14 +10,22 @@ It is built as a UEFI application and uses a service table instead of traditiona
 
 ## Compilation
 
-Prerequisites:
+Popcorn OS currently uses a hybrid toolchain:
 
-- MSVC or GCC
-- GMake
-- QEMU
-- cURL
-    
-This was only tested with Windows with MSVC. Your mileage may vary, and if you find a way to fix it, please submit a pull request!
+1. The kernel must be compiled with MSVC (Microsoft Visual C++).
+   The kernel depends on MSVC's handling of certain calling conventions and startup code (as in, it doesn't need them); GCC/Clang builds are not supported at this time.
+
+2. Applications must be compiled with GCC if you want proper behaviour. (MSVC works, but you can't make non-inline functions. The same for GCC except you can't make inline functions, the opposite problem.)
+
+This means the build process is not fully cross-platform.
+
+On Windows, you need both MSVC and GCC installed.
+
+On Linux, you can build the applications with GCC, but the kernel cannot be built without MSVC.
+
+The kernel relies on MSVC‑specific behavior to produce a working EFI binary. Attempts to build the kernel with GNU toolchains on Windows fail due to assembler and ABI incompatibilities. Using MSVC ensures reliable builds and correct execution under OVMF/QEMU.
+
+I'd like to unify the toolchain in the future (e.g. by massaging gnu-efi), but for now MSVC is mandatory for the kernel. If you can find a way to fix it, please do! Submit a pull request, *please*.
 
 To compile it, simply clone the repo with all prerequisites and run:
 ``` bash
