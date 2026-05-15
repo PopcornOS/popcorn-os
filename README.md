@@ -10,8 +10,8 @@ It is built as a UEFI application and uses a service table instead of traditiona
 
 ## Application format
 
-Apps are packaged as flat binaries (`.bin`) that have a function at address 0 which takes `(pop_Services* svc, int argc, CHAR16** argv)`.
-This function is commonly called `pop_main`. The service table is very documented in `popcorn.h`.
+Apps are packaged as flat binaries (`.bin`) that have a function at address 0 which has the prototype `int (pop_Services* svc, int argc, CHAR16** argv)`.
+This function is commonly called `pop_main`. The service table is heavily documented in `popcorn.h`.
 
 ## Compilation
 

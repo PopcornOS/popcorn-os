@@ -218,6 +218,30 @@ typedef struct popt_Termsize {
     unsigned int cols;
 } popt_Termsize;
 
+// Time and date.
+typedef struct popd_Datetime {
+    // Year
+    unsigned short int           year;
+    
+    // Month
+    unsigned char                month;
+    
+    // Day
+    unsigned char                day;
+    
+    // Hours
+    unsigned char                hours;
+    
+    // Minutes
+    unsigned char                minutes;
+    
+    // Seconds
+    unsigned char                seconds;
+    
+    // Nanoseconds
+    unsigned int                 nanoseconds;
+} popd_Datetime;
+
 // The main interface via which apps interact with the kernel.
 typedef struct pop_Services {
     // Prints text to the console.
@@ -296,4 +320,13 @@ typedef struct pop_Services {
     
     // Reboot the system. quick specifies if it's a quick reset or a full reboot.
     void                         (*reset)     (struct pop_Services* /* optional */, BOOL quick);
+    
+    // Get the date and time.
+    popd_Datetime                (*datetime)  (struct pop_Services* /* optional */);
+    
+    // Get the system uptime in nanoseconds.
+    unsigned long long           (*uptimens)  (struct pop_Services* /* optional */);
+    
+    // Prints an unsigned long long int to the console.
+    void                         (*printull)  (struct pop_Services*, unsigned long long num);
 } pop_Services;

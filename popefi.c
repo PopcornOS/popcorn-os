@@ -31,6 +31,10 @@ extern void        pop_API  popgk_deinit(popg_GraphicsServices* sgfx);
 extern int         pop_API  popmk_init(popm_MouseServices* msvc);
 extern int         pop_API  popmk_query(popm_MouseServices* msvc);
 
+extern void popd_calibrate(void);
+extern popd_Datetime pop_API popdk_datetime(pop_Services* svc);
+extern unsigned long long pop_API popdk_uptimens(pop_Services* svc);
+
 // Kernel services
 void pop_API popk_print(pop_Services* svc, const CHAR16* msg) {
     if (!svc || !svc->console) {
@@ -287,6 +291,32 @@ void pop_API popk_printint(pop_Services* svc, int value) {
     popk_print(svc, buf);
 }
 
+void pop_API popk_printull(pop_Services* svc, unsigned long long value) {
+    CHAR16 buf[64]; // enough for 64-bit int
+    int i = 0;
+
+    // Handle zero explicitly
+    if (value == 0) {
+        buf[i++] = L'0';
+    } else {
+        // Convert digits in reverse
+        CHAR16 tmp[64];
+        int j = 0;
+        while (value > 0) {
+            tmp[j++] = (CHAR16)(L'0' + (value % 10));
+            value /= 10;
+        }
+
+        // Reverse into buf
+        while (j > 0) {
+            buf[i++] = tmp[--j];
+        }
+    }
+
+    buf[i] = 0; // NUL terminate
+    popk_print(svc, buf);
+}
+
 void popk_perrno(pop_Services* svc, int errcode) {
     switch (errcode) {
         case pop_SUCCESS: 
@@ -356,9 +386,12 @@ pop_Services* popk_newsvc(pop_Services* svc) {
     svc2->curmove = popk_curmove;
     svc2->msvc = NULL;
     svc2->reset = popk_reset;
+    svc2->datetime = popdk_datetime;
+    svc2->uptimens = popdk_uptimens;
+    svc2->printull = popk_printull;
     
     svc2->console = svc ? svc->console : popfk_fileopen(svc2, L"/virt/dev/con", (popf_FileMode){ 
-        .read = 0, .write = 1, .create = 0, .bytes = 0 
+        .read = 1, .write = 1, .create = 0, .bytes = 0 
     });
     popl_ListServices* slist = svc2->memalloc(svc2, sizeof(popl_ListServices));
     if (slist) {
@@ -399,7 +432,7 @@ pop_Services* popk_newsvc(pop_Services* svc) {
     return svc2;
 }
 
-void splash(pop_Services* svc) {
+void pop_splash(pop_Services* svc) {
     popg_GraphicsServices* sgfx = svc->sgfx;
 
     for (UINT32 y = 0; y < logo_h; y++) {
@@ -420,6 +453,31 @@ void splash(pop_Services* svc) {
     sgfx->blit(sgfx);
 }
 
+void bootmsg(CHAR16* msg) {
+    UINTN Columns, Rows;
+    EFI_STATUS Status;
+
+    Status = gST->ConOut->QueryMode(
+        gST->ConOut,
+        gST->ConOut->Mode->Mode,   // current mode index
+        &Columns,
+        &Rows
+    );
+
+    if (EFI_ERROR(Status)) { return; }
+
+    // Move cursor to start of last row
+    popk_curmove(NULL, 0, Rows - 1);
+
+    // Clear the entire last row
+    for (UINTN i = 0; i < Columns - 1; i++) {
+        popk_print(NULL, L" ");
+    }
+
+    // Print the message
+    popk_print(NULL, L"\r");
+    popk_print(NULL, msg);
+}
 
 EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandleA, EFI_SYSTEM_TABLE *SystemTable) {
     gST = SystemTable;             // System Table
@@ -428,15 +486,14 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandleA, EFI_SYSTEM_TABLE *SystemTabl
     ImageHandle = ImageHandleA; // Image Handle
     UINTN Index;
 
-    gST->ConOut->EnableCursor(gST->ConOut, TRUE);
-    gST->ConOut->SetCursorPosition(gST->ConOut, 0, 0);
-    
-    CHAR16* args[] = { L"/system/cmd.bin" };
     pop_Services* svc = popk_newsvc(NULL);
 
     svc->sgfx->init(svc->sgfx);
-    splash(svc);
-    gBS->Stall(2000000);
+    pop_splash(svc);
+    
+    bootmsg(L"calibrating tsc...");
+    popd_calibrate();
+    
     for (int i = 0; i < (svc->sgfx->w * svc->sgfx->h); i++) {
         svc->sgfx->frame[i] = (popg_Pixel){ .r = 0, .g = 0, .b = 0 };
     }
@@ -444,6 +501,9 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandleA, EFI_SYSTEM_TABLE *SystemTabl
     svc->sgfx->deinit(svc->sgfx);
     svc->curmove(svc, 0, 0);
     
+    gST->ConOut->EnableCursor(gST->ConOut, TRUE);
+    
+    CHAR16* args[] = { L"/system/cmd.bin" };
     int res = popk_pwait(svc, svc, 1, args);
     if (res == pop_ENOENTY) {
         svc->println(NULL, L"Popcorn OS had trouble starting up.");

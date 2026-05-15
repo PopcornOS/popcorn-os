@@ -5,18 +5,25 @@ typedef struct {
     BOOL shouldexit;
 } ExecResult;
 
-CHAR16** split_whitespace(pop_Services* svc, CHAR16* line, int* argc_out);
+CHAR16** split_shlex(pop_Services* svc, CHAR16* line, int* argc_out);
 ExecResult cmdexec(pop_Services* svc, CHAR16* line);
 int wstrcmp(const CHAR16* a, const CHAR16* b);
 
 int pop_API pop_main(pop_Services* svc, int argc, CHAR16** argv) {
+    ExecResult result;
     svc->println(svc, L"Popcorn OS version pre-v1.0.0");
     svc->println(svc, L"");
     while (1) {
+        if (result.code != 0) {
+            svc->print(svc, L"(");
+            svc->printint(svc, result.code);
+            svc->print(svc, L") ");
+        }
         svc->print(svc, svc->curdir);
         svc->print(svc, L">");
         CHAR16* line = svc->readline(svc);
-        if (cmdexec(svc, line).shouldexit) {
+        result = cmdexec(svc, line);
+        if (result.shouldexit) {
             break;
         }
     }
