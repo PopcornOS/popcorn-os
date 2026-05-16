@@ -9,7 +9,7 @@ endif
 
 HDSIZE=64
 
-ifeq ($(CC),cl)
+ifeq ($(PCC),cl)
 define pop-c
 	@# MSVC path: compile to OBJ, then convert to raw binary
 	@# Warning: does not play nice with non-inline functions.
@@ -21,7 +21,7 @@ endef
 else
 define pop-c
 	@# GCC/Clang path: freestanding compile + LD to raw binary
-	$(CC) -ffreestanding -fno-stack-protector -nostdlib \
+	$(PCC) -ffreestanding -fno-stack-protector -nostdlib \
 		   -fno-asynchronous-unwind-tables -fshort-wchar \
 		   -mno-red-zone -c $(1) -o $(1).o
 	ld -nostdlib -T pop.ld $(1).o -o $(1).tmp$(EXE)

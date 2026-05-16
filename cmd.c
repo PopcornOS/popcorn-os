@@ -10,7 +10,7 @@ ExecResult cmdexec(pop_Services* svc, CHAR16* line);
 int wstrcmp(const CHAR16* a, const CHAR16* b);
 
 int pop_API pop_main(pop_Services* svc, int argc, CHAR16** argv) {
-    ExecResult result;
+    ExecResult result = (ExecResult){ 0, FALSE };
     svc->println(svc, L"Popcorn OS version pre-v1.0.0");
     svc->println(svc, L"");
     while (1) {

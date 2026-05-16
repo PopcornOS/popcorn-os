@@ -22,6 +22,18 @@ typedef unsigned short CHAR16;
     typedef unsigned char BOOL;
 #endif
 
+#ifdef __SIZE_TYPE__
+    typedef __SIZE_TYPE__ size_t;
+#else
+    #if defined(_WIN64) || defined(__x86_64__) || defined(__ppc64__) || \
+        defined(__aarch64__) || defined(__LP64__) || defined(_LP64)
+        typedef unsigned long long size_t;  // 64-bit
+    #else
+        typedef unsigned int size_t;        // 32-bit
+    #endif
+#endif
+
+
 #ifndef TRUE
 #define TRUE ((BOOL)1)
 #endif
@@ -43,7 +55,8 @@ typedef unsigned short CHAR16;
     #define pop_DEPRECATED(msg) __attribute__((deprecated))
 #endif
 
-// Popcorn OS calling convention (rcx, rdx, r8, r9, ...stack)
+// Popcorn OS's calling convention, the Microsoft x64 
+// calling convention (rcx, rdx, r8, r9, ...stack)
 #ifdef _MSC_VER
     #define pop_API __fastcall
 #else
@@ -173,7 +186,7 @@ typedef struct popg_GraphicsServices {
     void                         (*deinit)    (struct popg_GraphicsServices*);
 } popg_GraphicsServices;
 
-/* Replacements for the deprecated putpixel and getpixel that are faster. */
+/* Replacements for the deprecated putpixel and getpixel that are much faster. */
 #define popg_PUTPIXEL(sgfx, X, Y, R, G, B) \
     do { \
         if ((X) >= 0 && (X) < (sgfx)->w && (Y) >= 0 && (Y) < (sgfx)->h) { \
@@ -181,8 +194,10 @@ typedef struct popg_GraphicsServices {
         } \
     } while (0)
         
-#define popg_GETPIXEL(sgfx, X, Y, R, G, B) \
-    (sgfx)->frame[(Y) * (sgfx)->w + (X)]
+#define popg_GETPIXEL(sgfx, X, Y) \
+    (((X) >= 0 && (X) < (sgfx)->w && (Y) >= 0 && (Y) < (sgfx)->h) ? \
+         (sgfx)->frame[(Y) * (sgfx)->w + (X)] \
+     : (popg_Pixel){ 0, 0, 0 })
 
 // Mouse services.
 // This depends on pop_Services.sgfx for the screen width & height.
@@ -221,7 +236,7 @@ typedef struct popt_Termsize {
 // Time and date.
 typedef struct popd_Datetime {
     // Year
-    unsigned short int           year;
+    unsigned short               year;
     
     // Month
     unsigned char                month;
