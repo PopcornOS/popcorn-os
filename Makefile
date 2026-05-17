@@ -46,8 +46,8 @@ endef
 
 default: dev
 
-dev: setup clean build run
-prod: setup clean build make-image run-image
+dev: setup build run
+prod: setup build make-image run-image
 
 build: build-kernel build-apps
 
