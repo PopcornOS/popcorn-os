@@ -10,14 +10,15 @@ extern EFI_HANDLE *ImageHandle;
 // Forward declarations
 static popf_File* popf__virtopen(pop_Services* svc, const CHAR16* uefipath, popf_FileMode mode);
 static popf_File* popf__uefiopen(pop_Services* svc, const CHAR16* uefipath, popf_FileMode mode, int uefilags);
-static void*      popf__uefiread(popf_File* self);
 static int        popf__uefiwrite(popf_File* self, const CHAR16* data);
 static int        popf__ueficlose(popf_File* self);
 
 // Fallbacks
 static void*   pop_API popf__failread(popf_File* self) { return NULL; }
-static int     pop_API popf__failclose(popf_File* self) { return pop_ENOPERM; }
 static int     pop_API popf__virtclose(popf_File* self) { self->svc->memfree(self->svc, self); return 0; }
+static void*   pop_API popf__read(popf_File* self) {
+    return self->readwsz(self).content;
+}
 
 // Console write
 static int pop_API popft__ttywrite(popf_File* self, const CHAR16* data) {
@@ -25,7 +26,7 @@ static int pop_API popft__ttywrite(popf_File* self, const CHAR16* data) {
     // popt_print(tty, data);
     return 0;
 }
-static void* pop_API popft__ttyread(popf_File* self) {
+static popf_FileSizeAndContent pop_API popft__ttyreadwsz(popf_File* self) {
     EFI_INPUT_KEY Key;
     UINTN Index;
     size_t cap = 128;
@@ -41,7 +42,7 @@ static void* pop_API popft__ttyread(popf_File* self) {
         if (Key.UnicodeChar == L'\r') { // Enter pressed
             buf[len] = L'\0';
             gST->ConOut->OutputString(gST->ConOut, L"\r\n"); // echo newline
-            return buf;
+            return (popf_FileSizeAndContent) { len * sizeof(CHAR16), buf };
         } else if (Key.UnicodeChar == L'\b') { // Backspace
             if (len > 0) {
                 len--;
@@ -64,6 +65,8 @@ static void* pop_API popft__ttyread(popf_File* self) {
             buf[len++] = Key.UnicodeChar;
         }
     }
+    
+    return (popf_FileSizeAndContent) { len * sizeof(CHAR16), buf };
 }
 
 // Path normalization + fileopen
@@ -205,12 +208,13 @@ static popf_File* popf__virtopen(pop_Services* svc, const CHAR16* normpath, popf
         if (wostrcmp(normpath, 10, 13, L"con", 0, 3) == 0 && normpath[13] == L'\0') {
             popf_File* f = (popf_File*)svc->memalloc(svc, sizeof(popf_File));
             if (!f) return NULL;
-            f->shndl = NULL;
-            f->read  = popft__ttyread;
-            f->write = popft__ttywrite;
-            f->close = popf__virtclose;
-            f->svc   = svc;
-            f->mode  = mode;
+            f->shndl   = NULL;
+            f->read    = popf__read;
+            f->write   = popft__ttywrite;
+            f->close   = popf__virtclose;
+            f->svc     = svc;
+            f->mode    = mode;
+            f->readwsz = popft__ttyreadwsz;
             return f;
         }
     }
@@ -218,8 +222,8 @@ static popf_File* popf__virtopen(pop_Services* svc, const CHAR16* normpath, popf
 }
 
 // UEFI file read/write/close
-static void* pop_API popf__uefiread(popf_File* self) {
-    if (!self || !self->shndl) return NULL;
+static popf_FileSizeAndContent pop_API popf__uefireadwsz(popf_File* self) {
+    if (!self || !self->shndl) return (popf_FileSizeAndContent) { 0, NULL };
     EFI_FILE_PROTOCOL* File = (EFI_FILE_PROTOCOL*)self->shndl;
     EFI_STATUS Status;
     UINTN InfoSize = sizeof(EFI_FILE_INFO) + 256;
@@ -227,7 +231,7 @@ static void* pop_API popf__uefiread(popf_File* self) {
 
     // Allocate initial FileInfo buffer
     Status = gBS->AllocatePool(EfiLoaderData, InfoSize, (void**)&FileInfo);
-    if (EFI_ERROR(Status)) return NULL;
+    if (EFI_ERROR(Status)) return (popf_FileSizeAndContent) { 0, NULL };
 
     // Query file info; handle EFI_BUFFER_TOO_SMALL by reallocating
     Status = File->GetInfo(File, &gEfiFileInfoGuid, &InfoSize, FileInfo);
@@ -236,15 +240,15 @@ static void* pop_API popf__uefiread(popf_File* self) {
             gBS->FreePool(FileInfo);
             FileInfo = NULL;
             Status = gBS->AllocatePool(EfiLoaderData, InfoSize, (void**)&FileInfo);
-            if (EFI_ERROR(Status)) return NULL;
+            if (EFI_ERROR(Status)) return (popf_FileSizeAndContent) { 0, NULL };
             Status = File->GetInfo(File, &gEfiFileInfoGuid, &InfoSize, FileInfo);
             if (EFI_ERROR(Status)) {
                 gBS->FreePool(FileInfo);
-                return NULL;
+                return (popf_FileSizeAndContent) { 0, NULL };
             }
         } else {
             gBS->FreePool(FileInfo);
-            return NULL;
+            return (popf_FileSizeAndContent) { 0, NULL };
         }
     }
 
@@ -257,13 +261,13 @@ static void* pop_API popf__uefiread(popf_File* self) {
         // Return an empty buffer consistent with mode:
         if (self->mode.bytes) {
             void* empty = self->svc->memalloc(self->svc, 0);
-            return empty;
+            return (popf_FileSizeAndContent) { 0, empty };
         } else {
             // allocate one CHAR16 for NUL
             CHAR16* empty = (CHAR16*)self->svc->memalloc(self->svc, sizeof(CHAR16));
-            if (!empty) return NULL;
+            if (!empty) return (popf_FileSizeAndContent) { 0, NULL };
             empty[0] = 0;
-            return (void*)empty;
+            return (popf_FileSizeAndContent) { 1, (void*)empty };
         }
     }
 
@@ -271,25 +275,24 @@ static void* pop_API popf__uefiread(popf_File* self) {
     if (self->mode.bytes) {
         // Raw bytes: allocate exactly FileSizeBytes
         void* mem = self->svc->memalloc(self->svc, (unsigned int)FileSizeBytes);
-        if (!mem) return NULL;
+        if (!mem) return (popf_FileSizeAndContent) { 0, NULL };
         UINTN ReadSize = FileSizeBytes;
         Status = File->Read(File, &ReadSize, mem);
         if (EFI_ERROR(Status)) {
             self->svc->memfree(self->svc, mem);
-            return NULL;
+            return (popf_FileSizeAndContent) { 0, NULL };
         }
-        // Return raw buffer (caller must know length from context or FileInfo)
-        return mem;
+        return (popf_FileSizeAndContent) { ReadSize, mem };
     } else {
         // Text mode: allocate FileSizeBytes + sizeof(CHAR16) for NUL termination
         UINTN allocBytes = FileSizeBytes + sizeof(CHAR16);
         CHAR16* mem = (CHAR16*)self->svc->memalloc(self->svc, (unsigned int)allocBytes);
-        if (!mem) return NULL;
+        if (!mem) return (popf_FileSizeAndContent) { 0, NULL };
         UINTN ReadSize = FileSizeBytes;
         Status = File->Read(File, &ReadSize, (void*)mem);
         if (EFI_ERROR(Status)) {
             self->svc->memfree(self->svc, mem);
-            return NULL;
+            return (popf_FileSizeAndContent) { 0, NULL };
         }
 
         // NUL-terminate (ReadSize is bytes)
@@ -304,7 +307,7 @@ static void* pop_API popf__uefiread(popf_File* self) {
             mem[chars - 1] = 0;
         }
 
-        return (void*)mem; // caller casts to CHAR16*
+        return (popf_FileSizeAndContent) { chars, (void*)mem }; // caller casts to CHAR16*
     }
 }
 
@@ -371,12 +374,13 @@ static popf_File* pop_API popf__uefiopen(pop_Services* svc, const CHAR16* normpa
     if (EFI_ERROR(Status)) { svc->errcode = pop_ENOENTY; return NULL; }
 
     popf_File* f = (popf_File*)svc->memalloc(svc, sizeof(popf_File));
-    f->shndl = (void*)File;
-    f->read  = popf__uefiread;
-    f->write = popf__uefiwrite;
-    f->close = popf__ueficlose;
-    f->svc   = svc;
-    f->mode  = mode;
+    f->shndl  = (void*)File;
+    f->read   = popf__read;
+    f->write  = popf__uefiwrite;
+    f->close  = popf__ueficlose;
+    f->svc    = svc;
+    f->mode   = mode;
+    f->readwsz = popf__uefireadwsz;
     svc->memfree(svc, uefipath);
     return f;
 }

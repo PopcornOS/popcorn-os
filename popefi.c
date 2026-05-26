@@ -101,7 +101,7 @@ CHAR16* pop_API popk_readline(pop_Services* svc) {
 
 void pop_API popk_println(pop_Services* svc, const CHAR16* msg) {
     if (!svc) {
-        gST->ConOut->OutputString(gST->ConOut, (CHAR16*)msg);
+        gST->ConOut->OutputString(gST->ConOut, msg);
         gST->ConOut->OutputString(gST->ConOut, L"\r\n");
     } else {
         svc->console->write(svc->console, (void*)msg);

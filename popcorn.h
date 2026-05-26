@@ -87,6 +87,15 @@ typedef struct popf_FileMode {
     BOOL                         bytes;
 } popf_FileMode;
 
+// Container for file size and content.
+typedef struct popf_FileSizeAndContent {
+    // Size.
+    size_t                       size;
+    
+    // Content.
+    void* /* memfreeable */      content;
+} popf_FileSizeAndContent;
+
 // Represents a file.
 typedef struct popf_File {
     // Undocumented and changes between implementations.
@@ -106,6 +115,9 @@ typedef struct popf_File {
     
     // The mode in which this file was opened.
     popf_FileMode                mode;
+
+    // Read from the file and get the size and content.
+    popf_FileSizeAndContent      (*readwsz)   (struct popf_File*);
 } popf_File;
 
 // A linked list node.
